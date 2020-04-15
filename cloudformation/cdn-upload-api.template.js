@@ -9,7 +9,10 @@ const Parameters = {
         Type :"String",
         Description: "The name of the existing bucket where the images will be stored"
     },
-
+    BucketPrefix: {
+        Type: "String",
+        Description: "S3 bucket prefix aka the subfolder name in cdn.hotosm.org"
+    }
 };
 
 const Conditions = {
@@ -88,13 +91,13 @@ const Resources = {
                 "ZipFile": cf.join("\n", [
                     "const AWS = require('aws-sdk');",
                     "var s3 = new AWS.S3();exports.handler = (event, context, callback) => {",
-                    "let encodedImage =JSON.parse(event.body).image;",
+                    "let encodedImage =JSON.parse(event.body).image.data;",
                     "let decodedImage = Buffer.from(encodedImage, 'base64');",
-                    cf.sub("var filePath = '${AWS::StackName}/uploads/' + event.queryStringParameters.filename;"),
+                    cf.sub("var filePath = '${Prefix}/uploads/' + event.queryStringParameters.filename;", {"Prefix": cf.ref("BucketPrefix")}),
                     cf.sub("var params = {'Body': decodedImage,'Bucket': '${BucketName}','Key': filePath};", {"BucketName": cf.ref("BucketName")}),
                     "s3.upload(params, function(err, data){",
                     "if(err) {callback(err, null);} else {",
-                    cf.sub("let response = {'statusCode': 200,'headers': {'my_header': 'my_value'},'body': 'https://cdn.hotosm.org/${BucketName}/${AWS::StackName}/uploads/' + JSON.stringify(data.Key),'isBase64Encoded': false};", {"BucketName": cf.ref("BucketName")}),
+                    cf.sub("let response = {'statusCode': 200,'headers': {'my_header': 'my_value'},'body': 'https://cdn.hotosm.org/' + data.Key.toString(),'isBase64Encoded': false};", {"BucketName": cf.ref("BucketName")}),
                     "callback(null, response);}});};"
                 ])
             },
@@ -135,7 +138,7 @@ const Resources = {
         Type: "AWS::ApiGateway::RestApi",
         Properties: {
             Description: "API to upload images to HOTOSM CDN",
-            Name: "CDN Upload API",
+            Name: cf.sub("CDN Upload API (${AWS::StackName})"),
             EndpointConfiguration: {"Types" : ["REGIONAL"]},
             ApiKeySourceType: "HEADER"
         }
@@ -230,7 +233,7 @@ const Resources = {
     LambdaPermissionsUpload: {
         Type: "AWS::Lambda::Permission",
         Properties: {
-            Action: "lambda:Invoke",
+            Action: "lambda:InvokeFunction",
             FunctionName: cf.ref("APIPostFunction"),
             Principal: "apigateway.amazonaws.com",
             SourceArn: cf.join("", ["arn:aws:execute-api:", cf.region, ":", cf.accountId, ":", cf.ref("RestAPI"), "/*/POST/upload"])
@@ -240,54 +243,13 @@ const Resources = {
     LambdaPermissionsGet: {
         Type: "AWS::Lambda::Permission",
         Properties: {
-            Action: "lambda:Invoke",
+            Action: "lambda:InvokeFunction",
             FunctionName: cf.ref("APIGetFunction"),
             Principal: "apigateway.amazonaws.com",
             SourceArn: cf.join("", ["arn:aws:execute-api:", cf.region, ":", cf.accountId, ":", cf.ref("RestAPI"), "/*/GET/get-image"])
         }
     },
 
-
-    // GetImageLogGroup: {
-    //     Type: "AWS::Logs::LogGroup",
-    //     DependsOn: cf.ref("APIFunction"),
-    //     Properties: {
-    //         LogGroupName: cf.join("", ["/aws/lambda/", cf.stackName, "-", cf.ref("APIFunction")])
-    //     }
-    // },
-
-    // ApiGatewayCloudWatchLogsRole: {
-    //     Type: "AWS::IAM::Role",
-    //     Properties: {
-    //         AssumeRolePolicyDocument: {
-    //             Version: "2012-10-17",
-    //             Statement: [{
-    //                 Effect: "Allow",
-    //                 Principal: { "Service": ["apigateway.amazonaws.com"] },
-    //                 Action: ["sts:AssumeRole"]
-    //             }]
-    //         },
-    //         Policies: [{
-    //           PolicyName: "API_GW_Logs_Policy",
-    //           PolicyDocument: {
-    //             Version: "2012-10-17",
-    //             Statement: [{
-    //               Effect: "Allow",
-    //               Action: [
-    //                 "logs:CreateLogGroup",
-    //                 "logs:CreateLogStream",
-    //                 "logs:DescribeLogGroups",
-    //                 "logs:DescribeLogStreams",
-    //                 "logs:PutLogEvents",
-    //                 "logs:GetLogEvents",
-    //                 "logs:FilterLogEvents"
-    //               ],
-    //               Resource: "*"
-    //             }]
-    //           }
-    //         }]
-    //     }
-    // }
 };
 
 const Outputs = {

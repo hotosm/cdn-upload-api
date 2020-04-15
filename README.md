@@ -11,14 +11,22 @@ Upload a base64 encoded image to the S3 Bucket
 
 ### Parameters
 
-Authorization (WIP)
+`x-api-key` (Header)
 > An api key 
 
-filename
+`filename` (query string)
 > the name of the file as it will be saved in the S3 bucket (aka key)
 
-body 
-> base64 encoded image
+`body`
+> base64 encoded image as JSON in this format:
+```
+{
+  "image": {
+    "mime": "image/jpeg",
+    "data": "<base64 encoding>"
+  }
+}
+```
 
 
 ### Responses
@@ -27,14 +35,21 @@ body
 
 ## Get Image
 
-**GET** `/get-image`
+`GET /get-image`
 
 Pulls the image directly from the s3 bucket
 
 ### Parameters
 
-Bucket:
+`x-api-key` (Header)
+> An api key 
+
+`Bucket` (query string)
 > The name of the bucket
 
-Key:
+`Key` (query string)
 > the filename
+
+### Responses
+
+**200** The image is returned
