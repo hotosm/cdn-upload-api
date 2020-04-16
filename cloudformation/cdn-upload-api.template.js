@@ -93,11 +93,11 @@ const Resources = {
                     "var s3 = new AWS.S3();exports.handler = (event, context, callback) => {",
                     "let encodedImage =JSON.parse(event.body).image.data;",
                     "let decodedImage = Buffer.from(encodedImage, 'base64');",
-                    cf.sub("var filePath = '${Prefix}/uploads/' + event.queryStringParameters.filename;", {"Prefix": cf.ref("BucketPrefix")}),
+                    cf.sub("var filePath = '${Prefix}/uploads/' + Date.now() + '_' + event.queryStringParameters.filename;", {"Prefix": cf.ref("BucketPrefix")}),
                     cf.sub("var params = {'Body': decodedImage,'Bucket': '${BucketName}','Key': filePath};", {"BucketName": cf.ref("BucketName")}),
                     "s3.upload(params, function(err, data){",
                     "if(err) {callback(err, null);} else {",
-                    cf.sub("let response = {'statusCode': 200,'headers': {'my_header': 'my_value'},'body': 'https://cdn.hotosm.org/' + data.Key.toString(),'isBase64Encoded': false};", {"BucketName": cf.ref("BucketName")}),
+                    cf.sub("let response = {'statusCode': 200,'headers': {'my_header': 'my_value'},'body': '{\"url\": \"https://cdn.hotosm.org/' + data.Key.toString() + '\"}','isBase64Encoded': false};", {"BucketName": cf.ref("BucketName")}),
                     "callback(null, response);}});};"
                 ])
             },
@@ -229,6 +229,41 @@ const Resources = {
         }
     },
 
+    ApiGatewayKey: {
+        Type: "AWS::ApiGateway::ApiKey",
+        Properties: {
+            Description: "Key for CDN Upload API",
+            Enabled: true,
+        }
+    },
+
+    ApiGatewayUsagePlan: {
+        Type: "AWS::ApiGateway::UsagePlan",
+        Properties: {
+            ApiStages: [{
+                ApiId: cf.ref("RestAPI"),
+                Stage: cf.ref("ApiGatewayStage"),
+            }],
+            Description: "CDN Upload Usage Plan",
+            Throttle: {
+                RateLimit: 100,
+                BurstLimit: 25
+            },
+            Quota: {
+                Limit: 500,
+                Period: "MONTH"
+            },
+            UsagePlanName: cf.stackName
+        }
+    },
+    ApiGatewayUsagePlanApiKeys: {
+        Type: "AWS::ApiGateway::UsagePlanKey",
+        Properties: {
+            KeyId: cf.ref("ApiGatewayKey"),
+            KeyType: "API_KEY",
+            UsagePlanId: cf.ref("ApiGatewayUsagePlan")
+        }
+    },
 
     LambdaPermissionsUpload: {
         Type: "AWS::Lambda::Permission",
